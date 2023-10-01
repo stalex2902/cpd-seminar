@@ -1,5 +1,5 @@
 """Methods and modules for experiments with seq2seq modeld ('indid', 'bce' and 'combided')"""
-from . import datasets, loss
+from . import datasets
 
 from typing import List, Optional
 
@@ -12,17 +12,6 @@ import numpy as np
 import random
 
 from sklearn.base import BaseEstimator
-
-def fix_seeds(seed: int) -> None:
-    """Fix random seeds for experiments reproducibility.
-
-    :param seed: random seed
-    """
-    torch.manual_seed(seed)
-    torch.backends.cudnn.deterministic = True
-    torch.cuda.manual_seed_all(seed)
-    random.seed(seed)
-    np.random.seed(seed)
 
 
 class ClassicBaseline(nn.Module):
@@ -99,50 +88,14 @@ class CPDModel(pl.LightningModule):
         self.experiments_name = args["experiments_name"]
         self.model = model
         
-        if self.experiments_name in ["explosion", "road_accidents"]:
-            print("Loading extractor...")
-            self.extractor = torch.hub.load(
-                "facebookresearch/pytorchvideo:main", "x3d_m", pretrained=True
-            )
-            self.extractor = nn.Sequential(*list(self.extractor.blocks[:5]))
-
-            # freeze extractor parameters
-            for param in self.extractor.parameters():
-                param.requires_grad = False
-        else:
-            self.extractor = None
-
         self.learning_rate = args["learning"]["lr"]
         self.batch_size = args["learning"]["batch_size"]
         self.num_workers = args["num_workers"]
 
-        self.T = args["loss"]["T"]
-
-        if loss_type == "indid":
-            self.loss = loss.CPDLoss(len_segment=self.T)
-        elif loss_type == "bce":
-            self.loss = nn.BCELoss()
-        else:
-            raise ValueError(
-                "Wrong loss_type {}. Please, choose 'indid' or 'bce' loss_type.".format(
-                    loss_type
-                )
-            )
+        self.loss = nn.BCELoss()
+                
         self.train_dataset = train_dataset
         self.test_dataset = test_dataset
-
-    def __preprocess(self, input: torch.Tensor) -> torch.Tensor:
-        """Preprocess batch before forwarding (i.e. apply extractor for video input).
-
-        :param input: input torch.Tensor
-        :return: processed input tensor to be fed into .forward method 
-        """
-        if self.experiments_name in ["explosion", "road_accidents"]:
-            input = self.extractor(input.float()) 
-            input = input.transpose(1, 2).flatten(2) # shape is (batch_size,  C*H*W, seq_len)
-
-        # do nothing for non-video experiments
-        return input
 
     def forward(self, inputs: torch.Tensor) -> torch.Tensor:
         """Forward step for CPD model.
@@ -150,7 +103,7 @@ class CPDModel(pl.LightningModule):
         :param inputs: batch of data
         :return: predictions
         """
-        return self.model(self.__preprocess(inputs))
+        return self.model(inputs)
 
     def training_step(self, batch: torch.Tensor, batch_idx: int) -> torch.Tensor:
         """Train CPD model.

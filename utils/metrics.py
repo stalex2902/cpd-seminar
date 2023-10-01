@@ -7,12 +7,10 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 import gc
-import pickle
-from pathlib import Path
 
 import pytorch_lightning as pl
 
-from utils import klcpd, tscp, cpd_models
+from utils import cpd_models, tscp
 
 #------------------------------------------------------------------------------------------------------------#
 #                         Evaluate seq2seq, KL-CPD and TS-CP2 baseline models                                #
@@ -112,7 +110,7 @@ def get_models_predictions(
     :param inputs: input data
     :param labels: true labels
     :param model: CPD model
-    :param model_type: default "seq2seq" for BCE model, "klcpd" for KLCPD model
+    :param model_type: default "seq2seq" for BCE model, "tscp" for TS-CP model
     :param device: device name
     :param scales: scale parameter for KL-CPD predictions
     :return: model's predictions
@@ -120,35 +118,8 @@ def get_models_predictions(
     inputs = inputs.to(device)
     true_labels = labels.to(device)
 
-    if model_type in ['simple', 'weak_labels']:
-        outs = []
-        true_labels = []
-        for batch_n in range(inputs.shape[0]):
-            inp = inputs[batch_n].to(device)
-            lab = labels[batch_n].to(device)
-            
-            if model_type == 'simple':
-                #TODO FIX
-                #out = [model(inp[i].flatten().unsqueeze(0).float()).squeeze() for i in range(0, len(inp))]
-                out = [model(inp[:, i].unsqueeze(0).float()).squeeze() for i in range(0, len(inp))]
-                
-            elif (model_type == 'weak_labels') and (subseq_len is not None):
-                out_end = [model(inp[i: i + subseq_len].flatten(1).unsqueeze(0).float()) for i in range(0, len(inp) - subseq_len)]
-                out = [torch.zeros(len(lab) - len(out_end), 1, device=device)]                
-                out.extend(out_end)
-                out = torch.cat(out)
-            true_labels += [lab]
-            #TODO: fix
-            try:
-                outs.append(torch.stack(out))
-            except:
-                outs.append(out)
-        outs = torch.stack(outs)
-        true_labels = torch.stack(true_labels)                
-    elif model_type == 'tscp':
+    if model_type == 'tscp':
         outs = tscp.get_tscp_output_scaled(model, inputs, model.window_1, model.window_2, scale=scale)
-    elif model_type == 'kl_cpd':
-        outs = klcpd.get_klcpd_output_scaled(model, inputs, model.window_1, model.window_2, scale=scale)
     else:
         outs = model(inputs)
     return outs, true_labels
@@ -532,57 +503,3 @@ def calculate_baseline_metrics(
             f'TN: {TN}, FP: {FP}, FN: {FN}, TP: {TP}, DELAY: {mean_delay}, FP_DELAY:{mean_FP_delay}, F1:{f1}, COVER: {cover}'
         )
     return metrics
-
-#------------------------------------------------------------------------------------------------------------#
-#                                              Save results                                                  #
-#------------------------------------------------------------------------------------------------------------#
-def write_metrics_to_file(
-    filename: str,
-    metrics: tuple,
-    seed: int,
-    timestamp: str
-) -> None:
-    """Write metrics to a .txt file.
-
-    :param filename: path to the .txt file
-    :param metrics: tuple of metrics (output of the 'evaluation_pipeline' function)
-    :param seed: initialization seed for the model under evaluation
-    :param timestamp: timestamp indicating which model was evaluated
-    """
-    best_th_f1, best_time_to_FA, best_delay, auc, best_conf_matrix, best_f1, best_cover, best_th_cover, max_cover = metrics
-    
-    with open(filename, 'a') as f:
-        f.writelines('SEED: {}\n'.format(seed))
-        f.writelines('Timestamp: {}\n'.format(timestamp))
-        f.writelines('AUC: {}\n'.format(auc))
-        f.writelines('Time to FA {}, delay detection {} for best-F1 threshold: {}\n'. format(round(best_time_to_FA, 4), 
-                                                                                       round(best_delay, 4), 
-                                                                                       round(best_th_f1, 4)))
-        f.writelines('TN {}, FP {}, FN {}, TP {} for best-F1 threshold: {}\n'. format(best_conf_matrix[0],
-                                                                               best_conf_matrix[1],
-                                                                               best_conf_matrix[2],
-                                                                               best_conf_matrix[3],
-                                                                               round(best_th_f1, 4)))
-        f.writelines('Max F1 {}: for best-F1 threshold {}\n'.format(round(best_f1, 4), round(best_th_f1, 4)))
-        f.writelines('COVER {}: for best-F1 threshold {}\n'.format(round(best_cover, 4), round(best_th_f1, 4)))
-
-        f.writelines('Max COVER {}: for threshold {}\n'.format(max_cover, best_th_cover))
-        f.writelines('----------------------------------------------------------------------\n')
-
-def dump_results(metrics_local: tuple, pickle_name: str) -> None:
-    """Save result metrics as a .pickle file."""
-    best_th_f1, best_time_to_FA, best_delay, auc, best_conf_matrix, best_f1, best_cover, best_th_cover, max_cover = metrics_local
-    results = dict(
-        best_th_f1=best_th_f1,
-        best_time_to_FA=best_time_to_FA,
-        best_delay=best_delay,
-        auc=auc,
-        best_conf_matrix=best_conf_matrix,
-        best_f1=best_f1,
-        best_cover=best_cover,
-        best_th_cover=best_th_cover,
-        max_cover=max_cover
-        )
-
-    with Path(pickle_name).open("wb") as f:
-        pickle.dump(results, f)
