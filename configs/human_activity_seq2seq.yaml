@@ -1,7 +1,7 @@
 model:
   hidden_dim: 8
   input_size: 28
-  n_layers: 1
+  n_layers: 2
   drop_prob: 0.5
 
 learning:
