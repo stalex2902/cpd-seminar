@@ -5,9 +5,6 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-# C extensions
-*.so
-
 # Distribution / packaging
 .Python
 env/
@@ -190,7 +187,5 @@ fabric.properties
 *.ckpt
 *events.out*
 
-data/
 logs/
 saves/
-saved_models/
