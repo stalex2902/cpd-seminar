@@ -65,7 +65,7 @@ class CPDDatasets:
             )
 
         else:
-            path_to_data = "../data/human_activity/"
+            path_to_data = "data/human_activity/"
             train_dataset = HumanActivityDataset(
                 path_to_data=path_to_data, seq_len=20, train_flag=True
             )
