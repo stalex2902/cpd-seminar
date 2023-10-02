@@ -13,17 +13,21 @@ def visualize_predictions(
     labels_batch: torch.Tensor,
     n_pics: int = 10,
     save_path: str = None,
-    step: int = 1,
+    scale: float = 1.,
     device: str = "cpu",
     batch_num_prefix: int = 0,
 ) -> None:
     """Visualize model's predictions for a batch of test sequences.
 
     :param model: trained model (e.g. CPDModel or EnsembleCPDModel)
+    :param model_type: type of the model ('seq2seq' or 'tscp')
     :param sequences_batch: batch of test sequences
     :param lavels_batch: batch of corresponding labels
     :param n_pics: number of pictures to plot
-    :param save: if True, save pictures to the 'pictures' folder
+    :param save_path: if not None, save pictures
+    :param scale - scale parameter to obtain TS-CP predictions
+    :param device - 'cpu' or 'cuda'
+    :batch_num_prefix - used for picture naming in case of several batches 
     """
     model.to(device)
     sequences_batch = sequences_batch.to(device)
@@ -42,7 +46,7 @@ def visualize_predictions(
             sequences_batch,
             window_1=model.window_1,
             window_2=model.window_2,
-            step=step,
+            scale=scale,
         )
     else:
         raise ValueError(f"Unkown model type: {model_type}")
